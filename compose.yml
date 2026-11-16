@@ -1,0 +1,52 @@
+name: pangram
+
+services:
+  detector:
+    build:
+      context: .
+    restart: unless-stopped
+    init: true
+    depends_on:
+      greyscope:
+        condition: service_healthy
+    environment:
+      DETECTOR_MODELS: ${DETECTOR_MODELS:-gigacheck,modernbert,adal,editlens-roberta,editlens-llama,greyscope}
+      GREYSCOPE_URL: http://greyscope:8001
+      GREYSCOPE_TIMEOUT: ${GREYSCOPE_TIMEOUT:-900}
+      HF_HOME: /cache/huggingface
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ${HF_CACHE_DIR:-~/.cache/huggingface}:/cache/huggingface
+    expose:
+      - "8000"
+    gpus: all
+    labels:
+      caddy: ${CADDY_NAMESPACE:-pangram}
+      caddy.wan: "true"
+      caddy.reverse_proxy: "{{upstreams 8000}}"
+    networks:
+      - proxy
+
+  greyscope:
+    build:
+      context: .
+      dockerfile: Dockerfile.greyscope
+    restart: unless-stopped
+    init: true
+    environment:
+      HF_HOME: /cache/huggingface
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ${HF_CACHE_DIR:-~/.cache/huggingface}:/cache/huggingface
+    expose:
+      - "8001"
+    gpus: all
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    external: true
